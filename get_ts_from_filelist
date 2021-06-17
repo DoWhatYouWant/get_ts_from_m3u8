@@ -1,6 +1,7 @@
+'''
+从文件夹中读取已下载的m3u8文件，获取密码网址和ts网址列表
 
-import requests
-
+'''
 import time
 from queue import Queue
 import requests
@@ -11,6 +12,7 @@ import requests
 from Crypto.Cipher import AES
 
 
+#获取path文件夹下的所有m3u8文件路径名的列表
 def get_all_files(dir):
     files_ = []
     list_ = os.listdir(dir)
@@ -24,21 +26,80 @@ def get_all_files(dir):
 
 
 
-def get_keycotent(keyurl):
 
+
+#解析m3u8文件，为每条ts网址构造可下载并进行解密的单元数据
+def get_keyurl_and_tslist(path):
+    tslist = []
+    key_url=''
+    with open(path,"r",encoding = "utf-8") as f:
+        i = 1
+        for line in f.readlines():
+            #print(line)
+            if i==1:
+                title =  line[:-1]
+            if i==7:
+                key_url = re.findall('URI=(.*)',line)
+            
+            if i ==9:
+                k_str = line[:line.rindex('/')]
+            if  i>=9 and k_str in line and "key.key" not in line:
+                tslist.append(line)
+            
+            i=i+1
+
+        keyurl = key_url[0][1:-1]
+        keycontent = get_keycotent(keyurl)
+
+        return keycontent,title,tslist
+
+#从密码网址获取密钥
+def get_keycotent(keyurl):
+    
     url_key=keyurl
     page4= requests.get(url_key).text
     keycontent=page4.strip()
     return keycontent
 
-def get_tsqueue(tslist):
+
+#从构造的单元数据下载单条ts文件，有密钥的下载后进行解密，无密钥的直接下载。
+def get_ts(tulpl):
+    i,keycontent, title, tssite = tulpl
+    
+    
+    user_agent = [
+
+        "Mozilla/5.0 (Windows NT 10.0; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0",
+        "Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; .NET4.0C; .NET4.0E; .NET CLR 2.0.50727; .NET CLR 3.0.30729; .NET CLR 3.5.30729; InfoPath.3; rv:11.0) like Gecko"
+    ]
+    headers = {'User-Agent': random.choice(user_agent)}
+    cryptor = AES.new(keycontent.encode(encoding = "utf-8"), AES.MODE_CBC, keycontent.encode(encoding ="utf-8"))
+    file_path = "H://newshouxiyulingshi//"+title
+    if os.path.exists(file_path):
+        pass
+    else:
+        os.makedirs(file_path)
+        
+    file_name=fnum = file_path+"//"+str(i).zfill(5)+".ts"
+    if os.path.exists(file_name):
+        #print(file_name +"已存在")
+        return 0
+    
+    res = requests.get(tssite, headers)
+    file_name=fnum = file_path+"//"+str(i).zfill(5)+".ts"
+    cont=cryptor.decrypt(res.content)
+    with open(file_name,"wb") as f:
+        f.write(cont)
+        f.close()
+    print(file_name +"已下载")
+    return 0
+
+
+def get_tsqueue(tupul):
     q=Queue()
-    i = 0
-    for item in tslist:
-        keycontent,title,ts=item
-        #print((i,keycontent,title,ts))
-        q.put((i,keycontent,title,ts))
-        i = i+1
+    keycontent,title,tslist=tupul
+    for i in range(len(ts_list)):
+        q.put((i,keycontent,title,ts_list[i]))
     return q
 
 
@@ -56,141 +117,28 @@ class MyThread(threading.Thread):
 
 
 
-def get_ts(tulpl):
-    i,keycontent, title, tssite = tulpl
+#从"H:\\shouxiyulingshi"文件夹下读取.m3u8文件
+f_list=get_all_files("H:\\shouxiyulingshi")
+print(f_list)
+continue_num = 0
+for item in f_list:
+    print(continue_num)
+    #从item文件中获取密钥，和ts片段的网址
+    tupul=get_keyurl_and_tslist(item)
+    keycontent,title,ts_list=tupul
+    q = get_tsqueue(tupul)
+    i_num=0
+    
+    while q.empty()==False:
+        try:
+            t="thread"+str(i_num)
+            t = MyThread(q.get())
+            t.start()
+            i_num = i_num + 1
+        except :
+            print("继续")
+            pass
+    print(title+"一集")
+    #x = input("一集下载完")
+    continue_num =continue_num+1
 
-
-    user_agent = [
-
-        "Mozilla/5.0 (Windows NT 10.0; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0",
-        "Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; .NET4.0C; .NET4.0E; .NET CLR 2.0.50727; .NET CLR 3.0.30729; .NET CLR 3.5.30729; InfoPath.3; rv:11.0) like Gecko"
-    ]
-    headers = {'User-Agent': random.choice(user_agent)}
-    #cryptor = AES.new(keycontent.encode(encoding = "utf-8"), AES.MODE_CBC, keycontent.encode(encoding ="utf-8"))
-    file_path = "H://newfile//"+title
-    if os.path.exists(file_path):
-        pass
-    else:
-        os.makedirs(file_path)
-
-    file_name= file_path+"//"+str(i).zfill(5)+".ts"
-    if os.path.exists(file_name):
-        #print(file_name +"已存在")
-        return 0
-
-    res = requests.get(tssite.strip(), headers)
-    file_name=file_path+"//"+str(i).zfill(5)+".ts"
-    if keycontent!=None:
-        cryptor = AES.new(keycontent.encode(encoding = "utf-8"), AES.MODE_CBC, keycontent.encode(encoding ="utf-8"))
-        cont=cryptor.decrypt(res.content)
-    else:
-        cont =res.content
-    with open(file_name,"wb") as f:
-        f.write(cont)
-        f.close()
-    #print(file_name +"已下载")
-    return 0
-
-
-  
-
-def get_nokeyandkey_tslist(path):
-    tslist = []
-    flag = 0
-    key_content = None
-    key_url=''
-
-    with open(path,'r',encoding='utf-8') as f:
-        i = 1
-        for line in f.readlines():
-            #print(line)
-            line = line.strip()
-            if i==1:
-                title =  line[:]
-
-            if "EXT-X-KEY" in line and "key" in line :
-
-                flag = 1
-                key_url = re.findall('URI=(.*)',line)
-                print(key_url)
-                key_url = key_url[0]
-                key_url = key_url[1:-1]
-                print(key_url)
-                key_content = get_keycotent(key_url)
-                #print(key_content)
-                #正则表达式提取keyurl and 获取key content
-                pass
-            if "EXT-X-KEY" in line and  "key" not in line:
-                flag = 0
-                key_content = None
-                #提取tsurl
-                pass
-            if "http" in line and "key" not in line:
-                if flag == 1 :
-                    tslist.append((key_content,title,line))
-                    #print(key_content,title,line)
-                    #执行将添加进队列
-                    pass
-                else :
-                    tslist.append((key_content,title,line))
-                    #print(key_content,title,line)
-
-                    #执行将空keycontent添加进队列
-            i = i+1
-    return tslist
-
-
-
-def main():
-    #获取"H:\\lingjianzhun"文件夹下所有.m3u8文件路径
-    f_list=get_all_files("H:\\lingjianzhun")
-    print(f_list)
-    continue_num = 0
-    for item in f_list:
-        #打开文件构造ts元组，以供下载
-        #print(continue_num)
-        '''
-        if "150" not in item :
-            continue_num=continue_num+1
-            continue
-        '''
-        
-        tslist=get_nokeyandkey_tslist(item)
-        #keycontent, title, tssite = tslist
-        q = get_tsqueue(tslist)
-        i_num=0
-
-        while q.empty()==False:
-            try:
-                t="thread"+str(i_num)
-                t = MyThread(q.get())
-                t.start()
-                i_num=i_num+1
-                '''
-                if i_num%20==19:
-                    time.sleep(7)
-                '''
-            except :
-                print("继续")
-                pass
-        print(str(continue_num)+"一集")
-        #x = input("一集下载完")
-        continue_num =continue_num+1
-
-
-
-
-
-
-
-
-
-
-
-
-
-  
-
-
-if __name__ == '__main__':
-    main()
