@@ -20,4 +20,5 @@ get_ts_from_m3u8    下载m3u8文件中的视频，加密或不加密
 3.在windows cmd命令行界面输入命令:
 
 copy /b "H:\newshouxiyulingshi\首席御灵师第1集免费在线观看-动漫 - 蚂蚁影院\*.ts" H:\newshouxiyulingshi1\001.ts
+
 可将"H:\newshouxiyulingshi\首席御灵师第1集免费在线观看-动漫 - 蚂蚁影院"文件夹内的所有ts片段合并成001.ts文件。
